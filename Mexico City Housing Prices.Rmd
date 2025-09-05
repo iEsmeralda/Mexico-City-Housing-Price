@@ -2,7 +2,6 @@
 title: "Mexico City Housing Prices"
 output:
   html_document: default
-  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -64,8 +63,7 @@ ggplot(df, aes(x = fct_infreq(property_type))) +
   ) +
   theme_minimal() +
   theme(
-    plot.title = element_text(hjust = 0.5)
-  )
+    plot.title = element_text(hjust = 0.5))
 ```
 ``` {r echo=FALSE}
 df %>%
@@ -125,8 +123,7 @@ ggplot(df, aes(x = "", y = surface_total_in_m2)) +
   theme_minimal() +
   theme(
     plot.title = element_text(hjust = 0.5),
-    axis.text.x = element_blank()
-  )
+    axis.text.x = element_blank())
 ```
 
 The boxplot displays the distribution of total surface area (m2) on a logarithmic scale. Most properties are concentrated between 70 and 200 m2, with a median close to 100 m2. However, there are numerous outliers with much larger areas, indicating the presence of unusually large properties or data entry errors.
@@ -143,8 +140,7 @@ ggplot(df, aes(x = property_type, y = surface_total_in_m2)) +
   theme_minimal() +
   theme(
     plot.title = element_text(hjust = 0.5),
-    axis.text.x = element_text(angle = 45, hjust = 1)
-  )
+    axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
 As we can see, all categories show extreme outliers, reflecting unusually large properties or potential data inconsistencies.
@@ -175,8 +171,7 @@ ggplot(df, aes(x = property_type, y = surface_covered_in_m2)) +
   theme_minimal() +
   theme(
     plot.title = element_text(hjust = 0.5),
-    axis.text.x = element_text(angle = 45, hjust = 1)
-  )
+    axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
 ``` {r echo=FALSE}
@@ -204,8 +199,7 @@ ggplot(df, aes(x = property_type, y = price_usd_per_m2)) +
   theme_minimal() +
   theme(
     plot.title = element_text(hjust = 0.5),
-    axis.text.x = element_text(angle = 45, hjust = 1)
-  )
+    axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
 The histogram shows that most properties are concentrated between 1,000 and 5,000 USD per m2, with a clear peak around 2,000 USD per m2. 
@@ -230,9 +224,9 @@ cat("Total rows after filtering for surfaces greater than 70 m2: ",total_rows)
 ```
 We also observed outliers in the upper part of the box plot. This indicates that some properties have unusually large areas. Therefore, I am going to remove those records by applying the interquartile range (IQR) method.
 ```{r echo=FALSE}
-Q1 <- quantile(df$surface_total_in_m2, 0.25,type = 1)  # 1st quartile
-Q3 <- quantile(df$surface_total_in_m2, 0.75)  # 3rd quartile
-IQR_value <- IQR(df$surface_total_in_m2)      # Interquartile range
+Q1 <- quantile(df$surface_total_in_m2, 0.25,type = 1)  
+Q3 <- quantile(df$surface_total_in_m2, 0.75)  
+IQR_value <- IQR(df$surface_total_in_m2)    
 
 lower_limit <- Q1 - 1.5 * IQR_value
 upper_limit <- Q3 + 1.5 * IQR_value
@@ -451,7 +445,7 @@ df_flags %>%
 
 Apartments and houses are the ones with the most flagged outliers.
 ``` {r echo = FALSE}
-# Price per m² by borough (show only flagged)
+# Price per m2 by borough
 df_flags %>%
   filter(flag_any) %>%
   ggplot(aes(x = reorder(property_type, price_usd_per_m2, median, na.rm = TRUE),
@@ -468,7 +462,6 @@ df_flags %>%
 In the plot above, we see that stores and houses almost always have low prices, whereas apartments tend to have higher prices.
 
 ``` {r echo = FALSE}
-# Total surface by property type (flagged only)
 df_flags %>%
   filter(flag_any) %>%
   ggplot(aes(x = property_type, y = surface_total_in_m2)) +
@@ -603,13 +596,10 @@ library(htmltools)
 df_map <- df %>%
   filter(is.finite(lat), is.finite(lon),
          is.finite(price_usd), is.finite(price_usd_per_m2))
-
-# Paleta sobre log10 de USD/m² (no del precio total)
 pal <- colorNumeric("plasma", 
                     domain = log10(df_map$price_usd_per_m2), 
                     na.color = "transparent")
 
-# Popups
 popup_fun <- function(x){
   paste0(
     "<b>", htmlEscape(x$property_type), "</b><br/>",
@@ -621,7 +611,7 @@ popup_fun <- function(x){
   )
 }
 
-# Mapa
+# map
 leaflet(df_map, options = leafletOptions(minZoom = 9)) %>%
   addProviderTiles(providers$CartoDB.Positron) %>%
   addCircleMarkers(
@@ -664,21 +654,13 @@ df <- df %>%
 ```
 
 ``` {r echo = FALSE}
-library(leaflet)
-library(dplyr)
-library(scales)
-library(htmltools)
-
 df_map <- df %>%
   filter(is.finite(lat), is.finite(lon),
          is.finite(price_usd), is.finite(price_usd_per_m2))
-
-# Paleta sobre log10 de USD/m² (no del precio total)
 pal <- colorNumeric("plasma", 
                     domain = log10(df_map$price_usd_per_m2), 
                     na.color = "transparent")
 
-# Popups
 popup_fun <- function(x){
   paste0(
     "<b>", htmlEscape(x$property_type), "</b><br/>",
@@ -689,8 +671,7 @@ popup_fun <- function(x){
     "Covered: ", round(x$surface_covered_in_m2), " m²"
   )
 }
-
-# Mapa
+# map
 leaflet(df_map, options = leafletOptions(minZoom = 9)) %>%
   addProviderTiles(providers$CartoDB.Positron) %>%
   addCircleMarkers(
@@ -714,6 +695,6 @@ model_df <- df %>%
 
 m1 <- lm(log_price ~ log_total + covered_ratio + property_type + places, data = model_df)
 
-glance(m1)   # R2, adj.R2, etc.
+glance(m1)   # r2, adj r2, etc
 tidy(m1) %>% arrange(p.value) %>% head(12)
 ```
