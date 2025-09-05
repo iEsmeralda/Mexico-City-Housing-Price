@@ -1,0 +1,719 @@
+---
+title: "Mexico City Housing Prices"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r packages, include=FALSE}
+library(tidyverse) # for data manipulation
+library(janitor) # data cleaning
+library(patchwork)
+df_bf <- read.csv("C:/Users/Bodoque/Desktop/housing_data_CDMX_v2.csv")
+```
+
+## Importing the data
+
+```{r df}
+df <- read.csv("C:/Users/Bodoque/Desktop/housing_data_CDMX_v2.csv")
+head(df)
+```
+
+I will delete the columns that are not useful for this analysis:
+
+```{r}
+df <- df %>% 
+  select(-c(lat.lon,currency,price,price_aprox_local_currency, price_per_m2))
+```
+```{r include=FALSE}
+names(df)[3] <- "price_usd" # rename the third column
+```
+``` {r}
+summary(df) # Summary statistics
+total_rows <- nrow(df)
+total_cols <- ncol(df)
+cat("Total rows: ",total_rows)
+cat("\nTotal columns: ",total_cols)
+```
+## Exploratory Data Analysis
+The dataset contains 8 columns:
+
+1. `property_type` : Type of property (e.g., house, apartment)
+2. `places` : Borough of Mexico City where the property is located
+3. `price_usd` : Property price in dollars.
+4. `surface_total_in_m2` : Total surface area in m2.
+5. `surface_covered_in_m2` : Built surface in m2.
+6. `price_usd_per_m2` : Property price per square meter in USD.
+7. `lat` : Latitude coordinate of the property location.
+8. `lon` : Longitude coordinate of the property location.
+
+```{r echo=FALSE}
+ggplot(df, aes(x = fct_infreq(property_type))) +
+  geom_bar(fill = "#D0BBFC") +
+  geom_text(stat = "count", aes(label = after_stat(count)), 
+            hjust = 0, size = 2.5) +
+  coord_flip() +
+  labs(
+    title = "Distribution of Properties by Type",
+    x = "Property Type",
+    y = "Number of Records"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5)
+  )
+```
+``` {r echo=FALSE}
+df %>%
+  count(places, sort = TRUE) %>%
+  slice_head(n = 16) %>%
+  ggplot(aes(x = reorder(places, n), y = n)) +
+  geom_col(fill = "#D0BBFC") +
+  geom_text(aes(label = n), hjust = 0, size = 2.5) +
+  coord_flip() +
+  labs(
+    title = "Number of Properties by Borough",
+    x = "Borough",
+    y = "Number of Properties"
+  ) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+``` {r echo=FALSE}
+ggplot(df, aes(x = price_usd)) +
+  geom_histogram(bins = 60, fill = "#D0BBFC", color = "#fff") +
+  scale_x_log10(labels = scales::comma) +
+  labs(
+    title = "Distribution of Price (USD, Log Scale)",
+    x = "Price (USD, log10)",
+    y = "Number of Records"
+  ) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+The histogram above shows the distribution of property prices in USD on a logarithmic scale. Most properties are concentrated between 50,000 and 300,000 USD, with a peak around 100,000–200,000 USD. A smaller number of high-value properties extend the distribution to over 1 million USD, which creates a long right tail. This indicates that the market is dominated by mid-priced properties, while luxury listings are rare but present.
+
+``` {r echo=FALSE}
+ggplot(df, aes(x = surface_total_in_m2)) +
+  geom_histogram(bins = 60, fill = "#D0BBFC", color = "white") +
+  scale_x_log10(labels = scales::comma) +
+  labs(
+    title = "Distribution of Total Surface (m2, Log Scale)",
+    x = "Total Surface (m2, log10)",
+    y = "Number of Records"
+  ) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+The histogram above shows the distribution of total surface area (in square meters) using a logarithmic scale. Most properties cluster between 70 and 200 m2, with a strong peak around 100 m2, which reflects the typical size of apartments or small houses in Mexico City. A small number of records extend far beyond this range, representing outliers or possibly data entry errors with unrealistically large values.
+
+``` {r echo=FALSE}
+ggplot(df, aes(x = "", y = surface_total_in_m2)) +
+  geom_boxplot(fill = "#D0BBFC", alpha = 0.7, outlier.alpha = 0.2) +
+  scale_y_log10(labels = scales::comma) +
+  labs(
+    title = "Boxplot of Total Surface (m2, Log Scale)",
+    x = "",
+    y = "Total Surface (m2, log10)"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.text.x = element_blank()
+  )
+```
+
+The boxplot displays the distribution of total surface area (m2) on a logarithmic scale. Most properties are concentrated between 70 and 200 m2, with a median close to 100 m2. However, there are numerous outliers with much larger areas, indicating the presence of unusually large properties or data entry errors.
+
+``` {r echo=FALSE}
+ggplot(df, aes(x = property_type, y = surface_total_in_m2)) +
+  geom_boxplot(fill = "#D0BBFC", alpha = 0.7, outlier.alpha = 0.2) +
+  scale_y_log10(labels = scales::comma) +
+  labs(
+    title = "Boxplot of Total Surface by Property Type (Log Scale)",
+    x = "Property Type",
+    y = "Total Surface (m2, log10)"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+```
+
+As we can see, all categories show extreme outliers, reflecting unusually large properties or potential data inconsistencies.
+Next, take a look at the distribution of covered surface area, it shows a pattern similar to what we observed earlier with the total surface area.
+
+``` {r echo=FALSE}
+ggplot(df, aes(x = surface_covered_in_m2)) +
+  geom_histogram(bins = 60, fill = "#D0BBFC", color = "white") +
+  scale_x_log10(labels = scales::comma) +
+  labs(
+    title = "Distribution of Covered Surface (m2, Log Scale)",
+    x = "Covered Surface (m2, log10)",
+    y = "Number of Records"
+  ) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+``` {r echo=FALSE}
+ggplot(df, aes(x = property_type, y = surface_covered_in_m2)) +
+  geom_boxplot(fill = "#D0BBFC", alpha = 0.7, outlier.alpha = 0.2) +
+  scale_y_log10(labels = scales::comma) +
+  labs(
+    title = "Boxplot of Covered Surface (Log Scale)",
+    x = "Property Type",
+    y = "Covered Surface (m2, log10)"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+```
+
+``` {r echo=FALSE}
+ggplot(df, aes(x = price_usd_per_m2)) +
+  geom_histogram(bins = 60, fill = "#D0BBFC", color = "white") +
+  scale_x_log10(labels = scales::comma) +
+  labs(
+    title = "Distribution of Price per m2 (USD, Log Scale)",
+    x = "USD per m2 (log10)",
+    y = "Number of Records"
+  ) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+``` {r echo=FALSE}
+ggplot(df, aes(x = property_type, y = price_usd_per_m2)) +
+  geom_boxplot(fill = "#D0BBFC", alpha = 0.7, outlier.alpha = 0.2) +
+  scale_y_log10(labels = scales::comma) +
+  labs(
+    title = "Boxplot of Price per m2 (USD, Log Scale)",
+    x = "Property Type",
+    y = "Price per m2, (USD, log10)"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+```
+
+The histogram shows that most properties are concentrated between 1,000 and 5,000 USD per m2, with a clear peak around 2,000 USD per m2. 
+The boxplot confirms this distribution, with the majority of values clustered in a narrow range but with numerous outliers on both ends. This indicates that while the market has a typical mid-range price, there are also extreme cases that deviate significantly from the norm.
+
+## Cleaning the Data
+
+There are some values that do not make sense. For example, the column surface_total_in_m2 shows a minimum value of 1, and the column surface_covered_in_m2 also has 1. This is unrealistic because the area would be too small. I am going to explore the data further to determine whether these values need to be deleted.
+
+```{r}
+minimal_area_m2 <- df %>%
+  filter(surface_total_in_m2 < 70)
+nrow(minimal_area_m2)
+```
+
+There are 4,919 records with a total surface area below 70 m2. These records will be removed to ensure the dataset contains only realistic values.
+
+```{r}
+df <- df[df$surface_total_in_m2 >= 70, ] # Filter rows where surface_total_in_m2 >= 70. The empty part after the comma means keep all columns.
+total_rows <- nrow(df)
+cat("Total rows after filtering for surfaces greater than 70 m2: ",total_rows)
+```
+We also observed outliers in the upper part of the box plot. This indicates that some properties have unusually large areas. Therefore, I am going to remove those records by applying the interquartile range (IQR) method.
+```{r echo=FALSE}
+Q1 <- quantile(df$surface_total_in_m2, 0.25,type = 1)  # 1st quartile
+Q3 <- quantile(df$surface_total_in_m2, 0.75)  # 3rd quartile
+IQR_value <- IQR(df$surface_total_in_m2)      # Interquartile range
+
+lower_limit <- Q1 - 1.5 * IQR_value
+upper_limit <- Q3 + 1.5 * IQR_value
+
+df_no_outliers <- df %>%
+  filter(surface_total_in_m2 >= lower_limit & surface_total_in_m2 <= upper_limit)
+```
+``` {R}
+cat("Rows before:", nrow(df), "\n")
+cat("Rows after removing outliers:", nrow(df_no_outliers), "\n")
+cat("Removed:", nrow(df) - nrow(df_no_outliers), "rows\n")
+```
+
+Next, we will check for duplicates and null values.
+``` {r}
+df<-df_no_outliers 
+df <- df %>% distinct()
+cat("Duplicate rows deleted: ", total_rows - nrow(df), "\n")
+cat("Null values: ",sum(is.na(df)))
+```
+
+```{r}
+total_rows <- nrow(df)
+cat("Total rows: ",total_rows)
+```
+``` {r echo=FALSE}
+ggplot(df, aes(x = property_type, y = surface_total_in_m2)) +
+  geom_boxplot(fill = "#D0BBFC", alpha = 0.7, outlier.alpha = 0.2) +
+  labs(
+    title = "Boxplot of Total Surface",
+    x = "Property Type",
+    y = "Total Surface (m2)"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+```
+``` {r}
+summary(df$surface_total_in_m2)
+```
+
+We need these results to match the covered area, so I will apply a filter that gathers the same information.
+
+``` {r}
+df <- df[df$surface_covered_in_m2 >= 70, ]
+df <- df[df$surface_covered_in_m2 <= 492, ]
+total_rows <- nrow(df)
+cat("Total rows: ",total_rows)
+```
+
+``` {r echo=FALSE}
+df <- df %>%
+  filter(surface_covered_in_m2 <= surface_total_in_m2)
+ggplot(df, aes(x = property_type, y = surface_covered_in_m2)) +
+  geom_boxplot(fill = "#D0BBFC", alpha = 0.7, outlier.alpha = 0.2) +
+  labs(
+    title = "Boxplot of Covered Surface",
+    x = "Property Type",
+    y = "Covered Surface (m2)"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+```
+
+``` {r echo=FALSE}
+ggplot(df, aes(x = surface_covered_in_m2)) +
+  geom_histogram(bins = 60, fill = "#D0BBFC", color = "white") +
+  labs(
+    title = "Distribution of Covered Surface",
+    x = "Covered Surface (m2)",
+    y = "Number of Records"
+  ) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+``` {r echo=FALSE}
+ggplot(df, aes(x = surface_total_in_m2)) +
+  geom_histogram(bins = 60, fill = "#D0BBFC", color = "white") +
+  labs(
+    title = "Distribution of Total Surface",
+    x = "Total Surface (m2)",
+    y = "Number of Records"
+  ) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+``` {r}
+summary(df)
+```
+
+After removing the outliers in surface area, the price histogram looks more reasonable. The area outliers were probably distorting the price distribution, and once removed, the shape now clearly shows where most properties in Mexico City are concentrated. You can see the difference in the histogram below.
+
+
+``` {r echo=FALSE}
+ggplot(df, aes(x = price_usd)) +
+  geom_histogram(bins = 60, fill = "#D0BBFC", color = "#fff") +
+  scale_x_log10(labels = scales::comma) +
+  labs(
+    title = "Distribution of Price (USD, Log Scale)",
+    x = "Price (USD, log10)",
+    y = "Number of Records"
+  ) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+However, I can see a maximum value of 12,314,238 USD. That price could be real, but I doubt it, so I will review the record to see whether the surface area coincides or if it is an incorrectly recorded price.
+``` {r}
+high_price_df <- df %>%
+  filter(price_usd > 12000000)
+
+nrow(high_price_df)   
+head(high_price_df)  
+```
+It is an apartment with only 70 m2 of covered and total surface area, which is impossible, so I will drop it.
+``` {r}
+df <- df[df$price_usd <= 12000000, ]
+```
+
+``` {r}
+df %>%
+  arrange(price_usd) %>%
+  head(10)
+```
+
+There are 4 values that are far from the others in terms of price. For the sake of simplifying the data, I will drop them.
+``` {r echo=FALSE}
+df <- df[df$price_usd >= 8693.27, ]
+```
+### Data Consistency Checks
+``` {r}
+df <- df %>%
+  mutate(
+    price_usd_per_m2 = price_usd / surface_total_in_m2,
+    covered_ratio = surface_covered_in_m2 / surface_total_in_m2)
+
+stopifnot(all(df$surface_total_in_m2 >= df$surface_covered_in_m2, na.rm = TRUE))
+summary(df[, c("price_usd","price_usd_per_m2","surface_total_in_m2","surface_covered_in_m2","covered_ratio")])
+```
+
+``` {r echo=FALSE}
+
+ggplot(df, aes(x = surface_total_in_m2, y = price_usd)) +
+  geom_point(alpha = 0.3, color = "#4C2085") +
+  scale_y_log10() + scale_x_log10() +
+  labs(title = "Price vs Total Surface") +
+  theme_minimal()
+```
+
+In the picture above, we can see some points where the price is very high while the total surface area is low. This may be a data entry error or could be explained by the location. In any case, I will analyze these occurrences further.
+
+``` {r}
+summary(df[, c("surface_total_in_m2", "price_usd")])
+
+df_flags <- df %>%
+  mutate(
+    flag_small_highprice = surface_total_in_m2 < 85  & price_usd > 274035,
+    flag_large_lowprice  = surface_total_in_m2 > 208  & price_usd < 79575,
+    flag_any = flag_small_highprice | flag_large_lowprice
+  )
+
+
+cat("Small and very expensive:", sum(df_flags$flag_small_highprice), "\n")
+cat("Large and very cheap:", sum(df_flags$flag_large_lowprice), "\n")
+cat("Total outliers:", sum(df_flags$flag_any), "\n")
+
+top_bottom <- df_flags %>%
+  filter(flag_any) %>%
+  arrange(desc(price_usd))
+
+bind_rows(
+  head(top_bottom, 5),
+  tail(top_bottom, 5)
+)
+```
+There are 130 records that meet the established conditions. Before deciding to drop them, I will plot them by borough and property type.
+
+``` {r echo = FALSE}
+# Counts by borough
+df_flags %>%
+  filter(flag_any) %>%
+  count(places, sort = TRUE) %>%
+  slice_head(n = 15) %>%
+  ggplot(aes(x = reorder(places, n), y = n)) +
+  geom_col(fill = "#D0BBFC") +
+  geom_text(aes(label = n), hjust = 0, size = 2.8) +
+  coord_flip() +
+  labs(title = "Flagged outliers by Borough",
+       x = "Borough", y = "Count") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+The five boroughs with the most values are Cuauhtémoc, Benito Juárez, Gustavo A. Madero, Miguel Hidalgo, and Álvaro Obregón.
+
+``` {r echo = FALSE}
+# Counts by property type
+df_flags %>%
+  filter(flag_any) %>%
+  count(property_type, sort = TRUE) %>%
+  ggplot(aes(x = reorder(property_type, n), y = n)) +
+  geom_col(fill = "#C6A3FF") +
+  geom_text(aes(label = n), hjust = 0, size = 2.8) +
+  coord_flip() +
+  labs(title = "Flagged outliers by Property Type",
+       x = "Property Type", y = "Count") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+Apartments and houses are the ones with the most flagged outliers.
+``` {r echo = FALSE}
+# Price per m² by borough (show only flagged)
+df_flags %>%
+  filter(flag_any) %>%
+  ggplot(aes(x = reorder(property_type, price_usd_per_m2, median, na.rm = TRUE),
+             y = price_usd_per_m2)) +
+  geom_boxplot(fill = "#D0BBFC", outlier.alpha = 0.3) +
+  coord_flip() +
+  scale_y_continuous(labels = scales::comma) +
+  labs(title = "USD/m2 for flagged outliers by Property Type",
+       x = "Property Type", y = "USD per m2") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+In the plot above, we see that stores and houses almost always have low prices, whereas apartments tend to have higher prices.
+
+``` {r echo = FALSE}
+# Total surface by property type (flagged only)
+df_flags %>%
+  filter(flag_any) %>%
+  ggplot(aes(x = property_type, y = surface_total_in_m2)) +
+  geom_boxplot(fill = "#C6A3FF", outlier.alpha = 0.3) +
+  coord_flip() +
+  labs(title = "Total surface for flagged outliers by Property Type",
+       x = "Property Type", y = "Total surface (m2)") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+In the plot above, we see that stores are the property type with the smallest total surface area, followed by houses, and then apartments. Apartments range from approximately 70 m2 to the maximum recorded value of 492 m2.
+
+``` {r}
+df_flags %>%
+  ggplot(aes(x = flag_any, y = price_usd_per_m2)) +
+  geom_boxplot(fill = "#D0BBFC", outlier.alpha = 0.3) +
+  scale_y_log10(labels = scales::comma) +
+  labs(title = "Comparison of USD/m2 between normal and flagged records",
+       x = "Flagged as outlier", y = "USD per m2 (log)") +
+  theme_minimal()
+```
+
+The boxplot compares the distribution of price per m2 between normal records (FALSE) and those flagged as outliers (TRUE).
+
+Normal records show a median around 1,000 USD/m2, with most values between 500 and 2,000 USD/m2, which is consistent with typical market ranges in Mexico City.
+
+Flagged records, however, are shifted downward, with a median closer to 500 USD/m2. They also present extreme high values (>10,000 USD/m2), suggesting inconsistencies such as very cheap large properties or very expensive small ones.
+
+This confirms that the flagged group behaves very differently from the main distribution, supporting the case for excluding them.
+
+``` {r}
+df_clean <- df_flags %>%
+  filter(!flag_any) %>%
+  select(-starts_with("flag_"))
+
+cat("Rows before:", nrow(df_flags), "\n")
+cat("Rows after removing outliers:", nrow(df_clean), "\n")
+cat("Removed:", nrow(df_flags) - nrow(df_clean), "rows\n")
+
+df <- df_clean
+```
+### Importance of Removing Outliers
+``` {r}
+
+p1 <- ggplot(df_bf, aes(x = price_aprox_usd)) +
+  geom_histogram(bins = 60, fill = "#D0BBFC", color = "white") +
+  scale_x_log10(labels = scales::comma) +
+  labs(title = "Before Cleaning", x = "Price (USD, log10)", y = "Count") +
+  theme_minimal()
+
+p2 <- ggplot(df, aes(x = price_usd)) +
+  geom_histogram(bins = 60, fill = "#9AD0EC", color = "white") +
+  scale_x_log10(labels = scales::comma) +
+  labs(title = "After Cleaning", x = "Price (USD, log10)", y = "Count") +
+  theme_minimal()
+p1 + p2
+```
+
+Before cleaning: the distribution is wider and strongly skewed to the right, with extreme values above 5 million USD. These outliers inflate the tail of the distribution and make the market appear more dispersed than it really is.
+
+After cleaning: the distribution becomes more compact and symmetric. Most properties are concentrated between 50,000 and 500,000 USD, with fewer extreme values. 
+
+
+## KPI's by Borough (Places)
+
+``` {r echo=FALSE}
+borough_stats <- df %>%
+  group_by(places) %>%
+  summarise(
+    n = n(),
+    median_price_usd = median(price_usd, na.rm = TRUE),
+    mean_price_usd   = mean(price_usd, na.rm = TRUE),
+    median_ppm2      = median(price_usd_per_m2, na.rm = TRUE),
+    mean_ppm2        = mean(price_usd_per_m2, na.rm = TRUE)
+  ) %>%
+  arrange(desc(median_ppm2))
+head(borough_stats, 16)
+```
+
+``` {r echo=FALSE}
+borough_stats %>%
+  slice_max(median_ppm2, n = 15) %>%
+  ggplot(aes(x = reorder(places, median_ppm2), y = median_ppm2)) +
+  geom_col(fill = "#D0BBFC") +
+  geom_text(aes(label = round(median_ppm2, 0)), 
+            hjust = -0.1, size = 3) +
+  coord_flip() +
+  labs(
+    title = "Median USD/m2 by Borough",
+    x = "Borough",
+    y = "Median USD/m2"
+  ) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+- The most expensive boroughs are Miguel Hidalgo (2,580 USD/m2) and Cuajimalpa (2,220 USD/m2), reflecting luxury markets in Polanco, Lomas, and Santa Fe. 
+
+- A second tier includes Benito Juárez (1,580 USD/m2), Cuauhtémoc (1,130 USD/m2), and Álvaro Obregón (1,100 USD/m2), characterized by central locations and high demand. 
+
+- Mid-range prices are observed in southern boroughs such as Tlalpan, Magdalena Contreras, and Coyoacán. 
+
+- Finally, eastern boroughs like Iztapalapa, Tláhuac and Gustavo A. Madero show the lowest medians (600–660 USD/m2), pointing to more affordable markets.
+
+``` {r echo=FALSE}
+ggplot(df_clean, aes(x = reorder(places, price_usd_per_m2, median, na.rm = TRUE),
+                     y = price_usd_per_m2)) +
+  geom_boxplot(fill = "#D0BBFC", outlier.alpha = 0.3) +
+  coord_flip() +
+  scale_y_log10(labels = scales::comma) +
+  labs(title = "USD/m² Distribution by Borough (log scale)",
+       x = "Borough", y = "USD per m² (log)") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+- High-value boroughs such as Miguel Hidalgo, Cuajimalpa, and Benito Juárez have the highest medians and wider spreads, reflecting the premium real estate markets in areas like Polanco, Santa Fe, and other neighborhoods.
+
+- Mid-range boroughs like Coyoacán, Magdalena Contreras, and Tlalpan display moderate prices with more variability, suggesting a mix of affordable and upscale areas.
+
+- Boroughs with lower values, such as Tláhuac, Iztapalapa, and Milpa Alta, display consistently lower medians and narrower distributions, indicating more affordable housing markets.
+
+
+``` {r echo = FALSE}
+library(leaflet)
+library(dplyr)
+library(scales)
+library(htmltools)
+
+df_map <- df %>%
+  filter(is.finite(lat), is.finite(lon),
+         is.finite(price_usd), is.finite(price_usd_per_m2))
+
+# Paleta sobre log10 de USD/m² (no del precio total)
+pal <- colorNumeric("plasma", 
+                    domain = log10(df_map$price_usd_per_m2), 
+                    na.color = "transparent")
+
+# Popups
+popup_fun <- function(x){
+  paste0(
+    "<b>", htmlEscape(x$property_type), "</b><br/>",
+    htmlEscape(x$places), "<br/>",
+    "Price: $", comma(round(x$price_usd)), "<br/>",
+    "USD/m²: $", comma(round(x$price_usd_per_m2)), "<br/>",
+    "Total: ", round(x$surface_total_in_m2), " m² | ",
+    "Covered: ", round(x$surface_covered_in_m2), " m²"
+  )
+}
+
+# Mapa
+leaflet(df_map, options = leafletOptions(minZoom = 9)) %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%
+  addCircleMarkers(
+    lng = ~lon, lat = ~lat,
+    radius = 4, color = ~pal(log10(price_usd_per_m2)),
+    fillOpacity = 0.7, stroke = FALSE,
+    popup = popup_fun(df_map)
+  ) %>%
+  addLegend(pal = pal, values = ~log10(price_usd_per_m2),
+            title = "USD per m2 (log scale)", position = "bottomright")
+```
+
+There are some points that are incorrectly located, so I will drop them.
+``` {r}
+# Apply the filter before dropping anything to check that the record does not match the locations.
+df_filtered <- df %>% filter(surface_total_in_m2 == 110 & places == "AlvaroObregon" & price_usd_per_m2 >= 1504 & price_usd_per_m2 <= 1505)
+df_filtered %>% head(19) 
+nrow(df_filtered)
+
+
+df <- df %>%
+  filter(!(surface_total_in_m2 == 195 & places == "GustavoAMadero" & price_usd == 151737.07))
+
+df <- df %>%
+  filter(!(surface_total_in_m2 == 300 & places == "AlvaroObregon" & price_usd >= 165435 & price_usd <= 165436))
+
+df <- df %>%
+  filter(!(surface_total_in_m2 == 110 & places == "AlvaroObregon" & price_usd_per_m2 >= 1504 & price_usd_per_m2 <= 1505))
+
+df <- df %>%
+  filter(!(surface_total_in_m2 == 364 & places == "Cuajimalpa" & price_usd_per_m2 >= 694))
+
+df <- df %>%
+  filter(!(surface_total_in_m2 == 284 & places == "Cuajimalpa" & price_usd_per_m2 >= 408))
+
+df <- df %>%
+  mutate(
+    places = ifelse(surface_total_in_m2 == 125 & places == "Cuauhtemoc" & price_usd_per_m2 >= 1970 & price_usd_per_m2 <=1972,
+                    "Xochimilco", places))
+```
+
+``` {r echo = FALSE}
+library(leaflet)
+library(dplyr)
+library(scales)
+library(htmltools)
+
+df_map <- df %>%
+  filter(is.finite(lat), is.finite(lon),
+         is.finite(price_usd), is.finite(price_usd_per_m2))
+
+# Paleta sobre log10 de USD/m² (no del precio total)
+pal <- colorNumeric("plasma", 
+                    domain = log10(df_map$price_usd_per_m2), 
+                    na.color = "transparent")
+
+# Popups
+popup_fun <- function(x){
+  paste0(
+    "<b>", htmlEscape(x$property_type), "</b><br/>",
+    htmlEscape(x$places), "<br/>",
+    "Price: $", comma(round(x$price_usd)), "<br/>",
+    "USD/m²: $", comma(round(x$price_usd_per_m2)), "<br/>",
+    "Total: ", round(x$surface_total_in_m2), " m² | ",
+    "Covered: ", round(x$surface_covered_in_m2), " m²"
+  )
+}
+
+# Mapa
+leaflet(df_map, options = leafletOptions(minZoom = 9)) %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%
+  addCircleMarkers(
+    lng = ~lon, lat = ~lat,
+    radius = 4, color = ~pal(log10(price_usd_per_m2)),
+    fillOpacity = 0.7, stroke = FALSE,
+    popup = popup_fun(df_map)
+  ) %>%
+  addLegend(pal = pal, values = ~log10(price_usd_per_m2),
+            title = "USD per m2 (log scale)", position = "bottomright")
+```
+
+``` {r}
+library(broom)
+
+model_df <- df %>%
+  mutate(log_price = log(price_usd),
+         log_total = log(surface_total_in_m2)) %>%
+  filter(is.finite(log_price), is.finite(log_total)) %>%
+  select(log_price, log_total, property_type, places, covered_ratio)
+
+m1 <- lm(log_price ~ log_total + covered_ratio + property_type + places, data = model_df)
+
+glance(m1)   # R2, adj.R2, etc.
+tidy(m1) %>% arrange(p.value) %>% head(12)
+```
